@@ -112,6 +112,29 @@ def main():
     dist = prob_dist_1(seq_c)
     print(f"for C: {H_1(dist)}")
 
+    # 4
+
+    N = 1000 
+    alphabet = ["а", "б"]
+
+    seq_D = ""
+    for i in range(N):
+        seq_D += alphabet[i % 2] 
+
+    from random import shuffle
+    seq_G_list = list(seq_D)
+    shuffle(seq_G_list)
+    seq_G = "".join(seq_G_list)
+
+    print("Sequence D (periodic)")
+    print("H1(D) =", H_1(prob_dist_1(seq_D)))
+    print("H2(D, intersect) =", H_2(prob_dist_2(seq_D)))
+    print("H2(D, non-intersect) =", H_2(prob_dist_2_no_intersect(seq_D)))
+
+    print("Sequence G (random)")
+    print("H1(G) =", H_1(prob_dist_1(seq_G)))
+    print("H2(G, intersect) =", H_2(prob_dist_2(seq_G)))
+    print("H2(G, non-intersect) =", H_2(prob_dist_2_no_intersect(seq_G)))
 
 if __name__ == "__main__":
     main()
