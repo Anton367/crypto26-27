@@ -24,20 +24,24 @@ def prob_dist_1(text):
 
 def prob_dist_2(text):
     dist = {}
+    count = 0
     for i in range(0, len(text)-1):
         bigram = text[i:i+2]
         dist[bigram] = dist.get(bigram, 0) + 1
+        count += 1
     for k in dist:
-        dist[k] /= len(text) - 1
+        dist[k] /= count
     return dist
 
 def prob_dist_2_no_intersect(text):
     dist = {}
+    count = 0
     for i in range(0, len(text)-1, 2):
         bigram = text[i:i+2]
         dist[bigram] = dist.get(bigram, 0) + 1
+        count += 1
     for k in dist:
-        dist[k] /= len(text) - 1
+        dist[k] /= count
     return dist
 
 def H_1(dist):
