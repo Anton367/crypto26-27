@@ -132,7 +132,7 @@ def main():
     
     # 1
 
-    text = preprocess("./TEXT_UTF8.txt")
+    text = preprocess("./TEXT_UTF8")
     keys = [
         "от",
         "спа",
