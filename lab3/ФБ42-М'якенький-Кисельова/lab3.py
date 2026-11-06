@@ -1,106 +1,132 @@
-from itertools import islice
+import sys
+from itertools import permutations
 
-ALPHABET = 'абвгдежзийклмнопрстуфхцчшщыьэюя'
+ALPHABET =  'абвгдежзийклмнопрстуфхцчшщьыэюя'
 M = len(ALPHABET)
+M2 = M * M
 
+# 1. Математичні підпрограми
 def gcd(a, b):
-    if b == 0:
-        return a
-    return gcd(b, a % b)
+    while b:
+        a, b = b, a % b
+    return a
 
-def find_b(x, y, m, a):
-    return (y - a*x) % m
-
-def inverse_by_modulo(a, m):
-    (r, r_next) = (a, m)
-    (u, u_next) = (1, 0)
-
-    while r_next > 0:
+def inverse_by_modulo(a, m): #обчислює обернений елемент за розширеним алгоритмом Евкліда
+    a %= m
+    r, r_next = a, m
+    u, u_next = 1, 0
+    while r_next:
         q = r // r_next
-        (r, r_next) = (r_next, r - q * r_next)
-        (u, u_next) = (u_next, u - q * u_next)
-
+        r, r_next = r_next, r - q * r_next
+        u, u_next = u_next, u - q * u_next
+    if r != 1:
+        return None
     return u % m
 
-def solve_linear_comparison(x_1, x_2, y_1, y_2, m=M**2):
-    x = x_2 - x_1
-    y = y_2 - y_1
+def solve_linear_comparison(a, b, n): #розв'язує порівняння a·x ≡ b (mod n). Якщо розв'язків кілька, повертає їх усі, а якщо жодного, повертає порожній список
+    a %= n
+    b %= n
+    d = gcd(a, n)
+    if b % d != 0:
+        return []
+    a1, b1, n1 = a // d, b // d, n // d
+    x0 = (b1 * inverse_by_modulo(a1, n1)) % n1 if n1 > 1 else 0
+    return [(x0 + i * n1) % n for i in range(d)]
 
-    solutions = []
-    d = gcd(x, m)
-
-    if d == 1:
-        a = inverse_by_modulo(x, m)*y % m
-        solutions.append((a, find_b(x_1, y_1, m, a)))
-    else:
-        q = y % d
-        if q:
-            return solutions
-        
-        x_0 = x // d
-        y_0 = y // d
-        m_0 = m // d
-
-        a_0 = inverse_by_modulo(x_0, m_0)*y_0 % m_0
-
-        for i in range(d):
-            a = (a_0 + i * m_0) % m
-            b = find_b(x_1, y_1, m, a)
-            solutions.append((a, b))
-
-    return solutions
-
-def prob_dist_2_no_intersect(text):
-    dist = {}
-    count = 0
-    for i in range(0, len(text)-1, 2):
-        bigram = text[i:i+2]
-        dist[bigram] = dist.get(bigram, 0) + 1
-        count += 1
-    for k in dist:
-        dist[k] /= count
-    return dist
-
-def dist_max_n(dist, n):
-    return sorted(dist, key=dist.get, reverse=True)[:n]
-
-def bigram_to_num(bigram):
-    return ALPHABET.find(bigram[0]) * M + ALPHABET.find(bigram[1])
+# 2. П'ять найчастіших біграм
+def bigram_to_num(bg):
+    return ALPHABET.index(bg[0]) * M + ALPHABET.index(bg[1])
 
 def num_to_bigram(num):
     return ALPHABET[num // M] + ALPHABET[num % M]
 
-def athens_bigram_decrypt(a, b, ciphertext, m=M**2):
-    cleartext = ""
-    a_inv = inverse_by_modulo(a, m)
-    for i in range(0, len(ciphertext)-1, 2):
-        y = bigram_to_num(ciphertext[i:i+2])
-        x = (a_inv * (y - b)) % m
-        cleartext += num_to_bigram(x)
-    return cleartext
+def top_bigrams(text, n=5): #знаходить п'ять найчастіших біграм шифртексту
+    dist = {}
+    for i in range(0, len(text) - 1, 2):
+        bg = text[i:i + 2]
+        dist[bg] = dist.get(bg, 0) + 1
+    return sorted(dist, key=dist.get, reverse=True)[:n]
 
-def detect_cleartext():
-    pass
+def decrypt(a, b, text):  #розшифровує шифртекст за формулою X = a⁻¹(Y − b) mod m²
+    a_inv = inverse_by_modulo(a, M2)
+    out = []
+    for i in range(0, len(text) - 1, 2):
+        y = bigram_to_num(text[i:i + 2])
+        out.append(num_to_bigram((a_inv * (y - b)) % M2))
+    return ''.join(out)
+
+def find_keys(X1, X2, Y1, Y2): #розв'язує систему для кожної знайденої пари
+    keys = []
+    for a in solve_linear_comparison(X1 - X2, Y1 - Y2, M2):
+        if gcd(a, M2) != 1:          # a має бути взаємно простим з m^2
+            continue
+        b = (Y1 - a * X1) % M2
+        keys.append((a, b))
+    return keys
+
+FORBIDDEN = ['аь', 'оь', 'уь', 'ыь', 'эь', 'юь', 'яь', 'еь', 'иь', 'ьь', 'ьы', 'ьй',
+             'жы', 'шы', 'щы', 'чы', 'гы', 'кы', 'хы', 'йь', 'ыы', 'ээ', 'юю', 'яя',
+             'щц', 'цщ', 'жщ', 'щж', 'фщ', 'щф', 'ьа', 'ьэ', 'ьо']
+COMMON = 'оаеинт'    
+RARE = 'фщь'          
+
+def is_meaningful(text): #перевіряє частоту часто вживаних літер, частоту рідкісних літер і частку заборонених біграм
+    n = len(text)
+    common = sum(text.count(c) for c in COMMON) / n   # у рос. мові ~0.45
+    rare = sum(text.count(c) for c in RARE) / n       # ~0.02-0.03
+    forb = sum(text.count(f) for f in FORBIDDEN) / (n - 1)
+    return common > 0.38 and rare < 0.06 and forb < 0.01
+
+def score(text):
+    n = len(text)
+    common = sum(text.count(c) for c in COMMON) / n
+    forb = sum(text.count(f) for f in FORBIDDEN) / (n - 1)
+    return common - 5 * forb
+
+# 3. Перебір пар і пошук кандидатів на ключ
+def read_text(path):
+    raw = open(path, encoding='utf-8').read().lower()
+    return ''.join(c for c in raw if c in ALPHABET)  
+
+def attack(ciphertext, clear_top):
+    cipher_top = top_bigrams(ciphertext, 5)
+    print("Найчастіші біграми мови:     ", clear_top)
+    print("Найчастіші біграми шифртексту:", cipher_top)
+
+    clear = [bigram_to_num(b) for b in clear_top]
+    cipher = [bigram_to_num(b) for b in cipher_top]
+
+    found = []
+    seen = set()
+    for i, j in permutations(range(5), 2): #перебирають усі пари біграм мови і всі пари біграм шифртексту
+        for k, l in permutations(range(5), 2):
+            for (a, b) in find_keys(clear[i], clear[j], cipher[k], cipher[l]):
+                if (a, b) in seen:
+                    continue
+                seen.add((a, b))
+                text = decrypt(a, b, ciphertext)
+                if is_meaningful(text):
+                    found.append((score(text), a, b, text,
+                                  (clear_top[i], clear_top[j], cipher_top[k], cipher_top[l])))
+    print(f"Перевірено кандидатів на ключ: {len(seen)}")
+    found.sort(reverse=True)
+    return found
 
 def main():
+    path = sys.argv[1] if len(sys.argv) > 1 else "variant_10.txt"
+    ciphertext = read_text(path)
+    print(f"Файл: {path}, довжина шифртексту: {len(ciphertext)}")
     most_common_cleartext = ["ст", "но", "то", "на", "ен"]
-
-    file = open("./variant_10.txt")
-    ciphertext = file.read()
-
-    most_common_ciphertext = dist_max_n(
-        prob_dist_2_no_intersect(ciphertext),
-        5
-    )
-
-    print(f"clear: {most_common_cleartext}")
-    print(f"cipher: {most_common_ciphertext}")
-
-    clear = list(map(lambda b: bigram_to_num(b), most_common_cleartext))
-    cipher = list(map(lambda b: bigram_to_num(b), most_common_ciphertext))
-
-    solutions = solve_linear_comparison(clear[0], clear[1], cipher[0], cipher[1])
-    print(athens_bigram_decrypt(solutions[0][0], solutions[0][1], ciphertext))
+    found = attack(ciphertext, most_common_cleartext)
+    if not found:
+        print("Змістовного тексту не знайдено")
+        return
+    for sc, a, b, text, pairs in found[:3]:
+        print(f"\nКлюч: a={a}, b={b}  (X*={pairs[0]}, X**={pairs[1]} -> Y*={pairs[2]}, Y**={pairs[3]}), score={sc:.3f}")
+        print(text[:300])
+    best = found[0]
+    open("decrypted_" + path, "w", encoding="utf-8").write(best[3])
+    print(f"\nПовний розшифрований текст записано у decrypted_{path}")
 
 if __name__ == "__main__":
     main()
